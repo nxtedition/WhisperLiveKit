@@ -7,9 +7,10 @@ try:
     import torch
 except ImportError: 
     torch = None
-from typing import List
+from typing import List, Tuple
 import numpy as np
 from whisperlivekit.timed_objects import ASRToken
+from faster_whisper.transcribe import TranscriptionInfo
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +68,7 @@ class WhisperTimestampedASR(ASRBase):
             condition_on_previous_text=True,
             **self.transcribe_kargs,
         )
-        return result
+        return result, TranscriptionInfo(None, 0.0, 0.0, 0.0, None, None, None)
 
     def ts_words(self, r) -> List[ASRToken]:
         """
@@ -117,7 +118,7 @@ class FasterWhisperASR(ASRBase):
         )
         return model
 
-    def transcribe(self, audio: np.ndarray, init_prompt: str = "") -> list:
+    def transcribe(self, audio: np.ndarray, init_prompt: str = "") -> Tuple[list, TranscriptionInfo]:
         segments, info = self.model.transcribe(
             audio,
             language=self.original_language,
@@ -127,7 +128,7 @@ class FasterWhisperASR(ASRBase):
             condition_on_previous_text=True,
             **self.transcribe_kargs,
         )
-        return list(segments)
+        return list(segments), info
 
     def ts_words(self, segments) -> List[ASRToken]:
         tokens = []
@@ -206,7 +207,7 @@ class MLXWhisper(ASRBase):
             condition_on_previous_text=True,
             path_or_hf_repo=self.model_size_or_path,
         )
-        return segments.get("segments", [])
+        return segments.get("segments", []), TranscriptionInfo(None, 0.0, 0.0, 0.0, None, None, None)
 
     def ts_words(self, segments) -> List[ASRToken]:
         tokens = []
@@ -286,8 +287,10 @@ class OpenaiApiASR(ASRBase):
             params["prompt"] = prompt
         proc = self.client.audio.translations if self.task == "translate" else self.client.audio.transcriptions
         transcript = proc.create(**params)
-        logger.debug(f"OpenAI API processed accumulated {self.transcribed_seconds} seconds")
-        return transcript
+        logger.debug(
+            f"OpenAI API processed accumulated {self.transcribed_seconds} seconds"
+        )
+        return transcript, TranscriptionInfo(None, 0.0, 0.0, 0.0, None, None, None)
 
     def use_vad(self):
         self.use_vad_opt = True
